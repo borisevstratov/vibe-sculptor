@@ -7,4 +7,4 @@ This is a UI experiment for iterative text content generation
 ## the problem
 
 Chat interfaces are terrible for state.  
-You scroll up and down, model loses context, you copy-paste. it's slow, ineffective, lots of explanation and irrelevant text.
+You scroll up, then down, model loses context, you copy-paste. Yuck! Enough!
