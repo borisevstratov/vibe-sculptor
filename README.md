@@ -9,6 +9,12 @@ Experiment for iterative text content generation.
 Chat interfaces are terrible for state.  
 You scroll up, then down, model loses context, you copy-paste. Yuck!
 
+## Solution
+
+You work on a single evolving artifact. Each prompt is an intentional modification: refine, expand, rewrite, remove, or reshape what already exists. The model operates on the current state.
+
+App is here: https://vibe-sculptor.netlify.app/
+
 ## Running locally
 
 1. Clone the repo
