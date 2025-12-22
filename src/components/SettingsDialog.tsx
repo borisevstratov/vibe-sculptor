@@ -1,25 +1,16 @@
 import { forwardRef, type RefObject } from "react";
-import { models } from "token.js";
-
-interface Settings {
-	provider: string;
-	model: string;
-	apiKey: string;
-}
+import type { Config } from "../App";
+import { GeminiModels } from "../lib/gemini";
 
 type Props = {
-	config: Settings;
-	setConfig: (config: Settings) => void;
+	config: Config;
+	setConfig: (config: Config) => void;
 };
-
-const providers = Object.keys(models) as (keyof typeof models)[];
 
 const SettingsDialog = forwardRef<HTMLDialogElement, Props>((props, ref) => {
 	const { config, setConfig } = props;
-	// @ts-expect-error
-	const providerConfig = models[config.provider];
 
-	const update = <K extends keyof Settings>(key: K, value: Settings[K]) =>
+	const update = <K extends keyof Config>(key: K, value: Config[K]) =>
 		setConfig({ ...config, [key]: value });
 
 	return (
@@ -48,25 +39,11 @@ const SettingsDialog = forwardRef<HTMLDialogElement, Props>((props, ref) => {
 					<label htmlFor="provider" className="text-[9px] uppercase opacity-40">
 						provider
 					</label>
-					<select
+					<input
+						disabled
 						className="bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-2 text-xs"
-						value={config.provider}
-						onChange={(e) => {
-							const nextProvider = e.target.value as Settings["provider"];
-
-							setConfig({
-								...config,
-								provider: nextProvider,
-								model: "--not-selected--",
-							});
-						}}
-					>
-						{providers.map((p) => (
-							<option key={p} value={p}>
-								{p}
-							</option>
-						))}
-					</select>
+						value="gemini"
+					/>
 				</div>
 
 				{/* Model */}
@@ -74,29 +51,17 @@ const SettingsDialog = forwardRef<HTMLDialogElement, Props>((props, ref) => {
 					<label htmlFor="model" className="text-[9px] uppercase opacity-40">
 						model
 					</label>
-
-					{Array.isArray(providerConfig.models) ? (
-						<select
-							className="bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-2 text-xs"
-							value={config.model}
-							onChange={(e) => update("model", e.target.value)}
-						>
-							{providerConfig.models.map((m: string) => (
-								<option key={m} value={m}>
-									{m}
-								</option>
-							))}
-							<option value="--not-selected--">SELECT MODEL</option>
-						</select>
-					) : (
-						<input
-							type="text"
-							className="bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-2 text-xs"
-							placeholder="custom-model"
-							value={config.model}
-							onChange={(e) => update("model", e.target.value)}
-						/>
-					)}
+					<select
+						className="bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-2 text-xs"
+						value={config.model}
+						onChange={(e) => update("model", e.target.value)}
+					>
+						{GeminiModels.map((m: string) => (
+							<option key={m} value={m}>
+								{m}
+							</option>
+						))}
+					</select>
 				</div>
 
 				{/* API key */}

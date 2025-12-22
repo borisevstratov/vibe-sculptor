@@ -29,7 +29,7 @@ Set the model and API keys in the settings dialog—it will be stored in browser
 
 ## Things to be done
 
-- [ ] Move away from [token.js](https://github.com/token-js/token.js) since they forgot their github password
+- [x] ~~Move away from [token.js](https://github.com/token-js/token.js) since they forgot their github password~~ Replaced with Google Gemini as of now.
 - [ ] Support modern LLMs
 - [ ] Polish UI
 - [ ] Store state and prompt history

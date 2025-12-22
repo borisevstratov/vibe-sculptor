@@ -1,74 +1,68 @@
 /** biome-ignore-all lint/a11y/noStaticElementInteractions: <explanation> */
 /** biome-ignore-all lint/a11y/useKeyWithClickEvents: <explanation> */
-import { Editor } from "@monaco-editor/react";
-import { useRef, useState } from "react";
-import { TokenJS } from "token.js";
+import { Editor, type EditorProps } from "@monaco-editor/react";
+import { type editor } from 'monaco-editor';
+
+import { useEffect, useRef, useState } from "react";
 import { useDarkMode, useLocalStorage } from "usehooks-ts";
 import Nav from "./components/Nav";
 import SettingsDialog from "./components/SettingsDialog";
+import { GeminiModels, generateContentStream } from "./lib/gemini";
+
+export type Config = {
+	provider: string;
+	model: string;
+	apiKey: string
+}
 
 export default function VibeSculptor() {
 	const { isDarkMode } = useDarkMode();
 	const dialogRef = useRef<HTMLDialogElement>(null);
+	const promptEditorRef = useRef<editor.IStandaloneCodeEditor | null>(null);
+
 	const [state, setState] = useState("// state_0\n// sculpt the vibe here");
 	const [prompt, setPrompt] = useState("");
-	const [config, setConfig] = useLocalStorage("vibe-sculptor_settings", {
-		provider: "openai",
-		model: "",
+	const [isGenerating, setIsGenerating] = useState(false);
+
+	const [config, setConfig] = useLocalStorage<Config>("vibe-sculptor_settings", {
+		provider: "gemini",
+		model: GeminiModels[1],
 		apiKey: "",
 	});
 
-	const [isGenerating, setIsGenerating] = useState(false);
+	useEffect(() => {
+		const handler = (e: KeyboardEvent) => {
+			if ((e.metaKey || e.ctrlKey) && e.key === ",") {
+				e.preventDefault();
+				dialogRef.current?.showModal();
+			}
+		};
 
-	window.addEventListener("keydown", (e: KeyboardEvent) => {
-		if ((e.metaKey || e.ctrlKey) && e.key === ",") {
-			e.preventDefault();
-			dialogRef.current?.showModal();
-		}
-	});
+		window.addEventListener("keydown", handler);
+		return () => window.removeEventListener("keydown", handler);
+	}, []);
 
-	const handleSend = async () => {
-		if (!prompt.trim() || isGenerating) {
+	const handleSend = async (instruction?: string) => {
+		const finalPrompt = instruction ?? prompt;
+		if (!finalPrompt.trim() || isGenerating) {
 			return;
 		}
 
-		const tokenjs = new TokenJS({ apiKey: config.apiKey });
-		// 1. Initialize Token.js client
 		setIsGenerating(true);
-		const instruction = prompt;
-		setPrompt(""); // Clear instruction log input
+		setPrompt("");
 
 		try {
-			// 2. Start streaming
-			// We pass the current 'state' as context and the 'instruction' as the prompt
-			const response = await tokenjs.chat.completions.create({
-				stream: true,
-				// @ts-expect-error
-				provider: config.provider,
-				model: config.model,
-				messages: [
-					{
-						role: "system",
-						content:
-							"You are a Vibe Sculptor. Update the provided code/text state based on instructions. Return ONLY the updated state.",
-					},
-					{
-						role: "user",
-						content: `Current State:\n${state}\n\nInstruction: ${instruction}`,
-					},
-				],
-			});
+			const response = await generateContentStream(
+				config,
+				state,
+				finalPrompt
+			);
 
-			// Reset state for the new version or append?
-			// Usually, for "sculpting", we want to overwrite with the new version
 			let accumulatedResponse = "";
 
-			// @ts-expect-error
 			for await (const chunk of response) {
-				const content = chunk.choices[0]?.delta?.content || "";
+				const content = chunk.text;
 				accumulatedResponse += content;
-
-				// 3. Update the editor in real-time
 				setState(accumulatedResponse);
 			}
 		} catch (error) {
@@ -77,6 +71,21 @@ export default function VibeSculptor() {
 		} finally {
 			setIsGenerating(false);
 		}
+	};
+
+
+	const handleEditorDidMount: EditorProps["onMount"] = (editor, monaco) => {
+		promptEditorRef.current = editor;
+
+		editor.addAction({
+			id: "custom-command-enter",
+			label: "Submit request",
+			keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter],
+			run: async () => {
+				const value = editor.getValue();
+				handleSend(value);
+			},
+		});
 	};
 
 	return (
@@ -90,7 +99,7 @@ export default function VibeSculptor() {
 						<span className="text-[10px] uppercase tracking-widest opacity-50">
 							state_history
 						</span>
-						<Nav onBack={() => {}} onForward={() => {}} />
+						<Nav onBack={() => { }} onForward={() => { }} />
 					</div>
 					<div className="flex-1 border border-zinc-300 dark:border-zinc-800 bg-white dark:bg-[#0d0d0d] overflow-hidden">
 						<Editor
@@ -103,6 +112,7 @@ export default function VibeSculptor() {
 								minimap: { enabled: false },
 								scrollbar: { vertical: "hidden", horizontal: "hidden" },
 								padding: { top: 20 },
+								wordWrap: "on",
 							}}
 						/>
 					</div>
@@ -114,7 +124,7 @@ export default function VibeSculptor() {
 						<span className="text-[10px] uppercase tracking-widest opacity-50">
 							instruction_log
 						</span>
-						<Nav onBack={() => {}} onForward={() => {}} />
+						<Nav onBack={() => { }} onForward={() => { }} />
 					</div>
 					<div className="flex-1 border border-zinc-300 dark:border-zinc-800 bg-white dark:bg-[#0d0d0d] overflow-hidden">
 						<Editor
@@ -122,6 +132,7 @@ export default function VibeSculptor() {
 							height="100%"
 							defaultLanguage="markdown"
 							value={prompt}
+							onMount={handleEditorDidMount}
 							onChange={(v) => setPrompt(v || "")}
 							options={{
 								minimap: { enabled: false },
@@ -144,6 +155,7 @@ export default function VibeSculptor() {
 								acceptSuggestionOnEnter: "off", // Prevents accepting suggestions with the Enter key
 								tabCompletion: "off", // Prevents accepting suggestions with the Tab key
 								wordBasedSuggestions: "off", // Disables suggestions based on words already in the document
+								wordWrap: "on",
 							}}
 						/>
 
