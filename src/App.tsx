@@ -1,7 +1,7 @@
 /** biome-ignore-all lint/a11y/noStaticElementInteractions: <explanation> */
 /** biome-ignore-all lint/a11y/useKeyWithClickEvents: <explanation> */
 import { Editor, type EditorProps } from "@monaco-editor/react";
-import { type editor } from 'monaco-editor';
+import type { editor } from "monaco-editor";
 
 import { useEffect, useRef, useState } from "react";
 import { useDarkMode, useLocalStorage } from "usehooks-ts";
@@ -12,23 +12,29 @@ import { GeminiModels, generateContentStream } from "./lib/gemini";
 export type Config = {
 	provider: string;
 	model: string;
-	apiKey: string
-}
+	apiKey: string;
+};
 
 export default function VibeSculptor() {
 	const { isDarkMode } = useDarkMode();
 	const dialogRef = useRef<HTMLDialogElement>(null);
+	const stateEditorRef = useRef<editor.IStandaloneCodeEditor | null>(null);
 	const promptEditorRef = useRef<editor.IStandaloneCodeEditor | null>(null);
 
 	const [state, setState] = useState("// state_0\n// sculpt the vibe here");
 	const [prompt, setPrompt] = useState("");
 	const [isGenerating, setIsGenerating] = useState(false);
+	const [generationTime, setGenerationTime] = useState<number | null>(null);
+	const [totalOutputTokens, setTotalOutputTokens] = useState<number | null>(null);
 
-	const [config, setConfig] = useLocalStorage<Config>("vibe-sculptor_settings", {
-		provider: "gemini",
-		model: GeminiModels[1],
-		apiKey: "",
-	});
+	const [config, setConfig] = useLocalStorage<Config>(
+		"vibe-sculptor_settings",
+		{
+			provider: "gemini",
+			model: GeminiModels[1],
+			apiKey: "",
+		},
+	);
 
 	useEffect(() => {
 		const handler = (e: KeyboardEvent) => {
@@ -43,6 +49,7 @@ export default function VibeSculptor() {
 	}, []);
 
 	const handleSend = async (instruction?: string) => {
+		const liveState = stateEditorRef.current?.getValue() ?? state;
 		const finalPrompt = instruction ?? prompt;
 		if (!finalPrompt.trim() || isGenerating) {
 			return;
@@ -50,13 +57,13 @@ export default function VibeSculptor() {
 
 		setIsGenerating(true);
 		setPrompt("");
+		setGenerationTime(null);
+		setTotalOutputTokens(null);
+
+		const startTime = performance.now();
 
 		try {
-			const response = await generateContentStream(
-				config,
-				state,
-				finalPrompt
-			);
+			const response = await generateContentStream(config, liveState, finalPrompt);
 
 			let accumulatedResponse = "";
 
@@ -64,15 +71,22 @@ export default function VibeSculptor() {
 				const content = chunk.text;
 				accumulatedResponse += content;
 				setState(accumulatedResponse);
+
+				if (chunk.usageMetadata?.totalTokenCount) {
+					setTotalOutputTokens(chunk.usageMetadata.totalTokenCount);
+				}
 			}
+
+			const endTime = performance.now();
+			setGenerationTime(endTime - startTime);
 		} catch (error) {
+			setTotalOutputTokens(null);
 			console.error("Sculpting failed:", error);
 			setState((prev) => prev + "\n\n// Error: Failed to connect to provider.");
 		} finally {
 			setIsGenerating(false);
 		}
 	};
-
 
 	const handleEditorDidMount: EditorProps["onMount"] = (editor, monaco) => {
 		promptEditorRef.current = editor;
@@ -87,6 +101,13 @@ export default function VibeSculptor() {
 			},
 		});
 	};
+
+	const generationTimeInSeconds = generationTime !== null ? generationTime / 1000 : null;
+	const tokensPerSecond =
+		generationTimeInSeconds !== null && totalOutputTokens !== null && generationTimeInSeconds > 0
+			? totalOutputTokens / generationTimeInSeconds
+			: null;
+
 
 	return (
 		<div className="h-screen w-screen bg-[#f4f4f4] dark:bg-[#0a0a0a] p-4 font-mono flex flex-col gap-4 transition-colors duration-300">
@@ -103,6 +124,9 @@ export default function VibeSculptor() {
 					</div>
 					<div className="flex-1 border border-zinc-300 dark:border-zinc-800 bg-white dark:bg-[#0d0d0d] overflow-hidden">
 						<Editor
+							onMount={(editor) => {
+								stateEditorRef.current = editor;
+							}}
 							theme={isDarkMode ? "vs-dark" : "light"}
 							height="100%"
 							defaultLanguage="markdown"
@@ -186,6 +210,12 @@ export default function VibeSculptor() {
 						<span className="uppercase">{config.provider}</span>
 						<span className="opacity-60">/</span>
 						<span className="uppercase">{config.model}</span>
+						{generationTimeInSeconds !== null && (
+							<span className="opacity-60">
+								({generationTimeInSeconds.toFixed(2)} s
+								{tokensPerSecond !== null && ` | ${tokensPerSecond.toFixed(2)} t/s`})
+							</span>
+						)}
 					</div>
 				</div>
 
