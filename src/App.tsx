@@ -162,7 +162,7 @@ export default function VibeSculptor() {
 						<div className="absolute bottom-4 right-4 flex items-center gap-3">
 							<button
 								type="button"
-								onClick={handleSend}
+								onClick={() => handleSend()}
 								className="border border-zinc-900 dark:border-zinc-500 px-3 py-1 text-xs text-zinc-900 dark:text-zinc-200 hover:bg-black hover:text-white dark:hover:bg-zinc-200 dark:hover:text-black transition-colors"
 							>
 								Send
